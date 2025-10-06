@@ -1,0 +1,227 @@
+@import "tailwindcss";
+
+/* --- WatchBuddy Responsive Room Styles --- */
+
+/* Hide scrollbars for chat & video grid */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none; /* IE & Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* Make sure videos don’t overflow and stay responsive */
+video {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+  background-color: #000;
+}
+
+/* Chat section animations */
+.chat-slide-enter {
+  transform: translateX(100%);
+  opacity: 0;
+  transition: transform 0.4s ease, opacity 0.4s ease;
+}
+.chat-slide-enter-active {
+  transform: translateX(0);
+  opacity: 1;
+}
+.chat-slide-exit {
+  transform: translateX(0);
+  opacity: 1;
+}
+.chat-slide-exit-active {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+/* Responsive Fixes */
+@media (max-width: 1024px) {
+  /* Stack video and chat vertically */
+  .room-container {
+    flex-direction: column !important;
+  }
+
+  .video-section {
+    height: 60vh !important;
+  }
+
+  .chat-section {
+    width: 100% !important;
+    height: 40vh !important;
+    border-left: none !important;
+    border-top: 1px solid rgba(59, 130, 246, 0.3);
+  }
+
+  /* Move chat toggle button up */
+  .chat-toggle-btn {
+    top: -2rem !important;
+    left: auto !important;
+    right: 1rem !important;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Reduce padding, text size, and adjust layout */
+  .peer-video {
+    min-width: 120px !important;
+    height: 100px !important;
+  }
+
+  .peer-name {
+    font-size: 0.7rem !important;
+  }
+
+  .media-controls {
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+  }
+
+  .media-controls input {
+    width: 100% !important;
+  }
+
+  .room-header {
+    flex-direction: column !important;
+    gap: 0.5rem;
+  }
+}
+
+.hide-scrollbar {
+  /* For IE and Edge (legacy) */
+  -ms-overflow-style: none;
+  /* For Firefox */
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Smooth fade-in + scale animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(15px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Apply animations */
+.room-container,
+.video-section,
+.chat-section,
+.room-header {
+  animation: fadeInUp 0.6s ease forwards;
+}
+
+.peer-video,
+.chat-box {
+  animation: fadeIn 0.6s ease forwards;
+}
+
+/* Smooth transitions for theme or background changes */
+* {
+  transition: background-color 0.4s ease, color 0.4s ease, border-color 0.3s ease;
+}
+
+/* Video styling */
+video {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+  background-color: #000;
+}
+
+/* Chat section slide animation */
+.chat-slide-enter {
+  transform: translateX(100%);
+  opacity: 0;
+  transition: transform 0.4s ease, opacity 0.4s ease;
+}
+.chat-slide-enter-active {
+  transform: translateX(0);
+  opacity: 1;
+}
+.chat-slide-exit {
+  transform: translateX(0);
+  opacity: 1;
+}
+.chat-slide-exit-active {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+/* --- Responsive Layout Fixes --- */
+@media (max-width: 1024px) {
+  /* Stack video and chat vertically */
+  .room-container {
+    flex-direction: column !important;
+  }
+
+  .video-section {
+    height: 60vh !important;
+  }
+
+  .chat-section {
+    width: 100% !important;
+    height: 40vh !important;
+    border-left: none !important;
+    border-top: 1px solid rgba(59, 130, 246, 0.3);
+  }
+
+  /* Move chat toggle button up */
+  .chat-toggle-btn {
+    top: -2rem !important;
+    left: auto !important;
+    right: 1rem !important;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Reduce padding, text size, and adjust layout */
+  .peer-video {
+    min-width: 120px !important;
+    height: 100px !important;
+  }
+
+  .peer-name {
+    font-size: 0.7rem !important;
+  }
+
+  .media-controls {
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+  }
+
+  .media-controls input {
+    width: 100% !important;
+  }
+
+  .room-header {
+    flex-direction: column !important;
+    gap: 0.5rem;
+  }
+
+  /* Subtle breathing animation for mobile */
+  .video-section {
+    animation: fadeInUp 0.8s ease forwards;
+  }
+}
