@@ -52,8 +52,6 @@ export async function cleanupInactiveRooms(cutoff: number) {
 }
 
 export async function saveChat(roomId: string, chatEntry: any) {
-  // Determine chats table columns dynamically and insert according to available schema.
-  // Cache column list to avoid repeated metadata queries.
   const getChatColumns = async () => {
     const res = await pool.query(
       `SELECT column_name FROM information_schema.columns WHERE table_name = 'chats' AND table_schema = 'public'`

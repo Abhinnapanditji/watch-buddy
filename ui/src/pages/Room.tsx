@@ -25,18 +25,14 @@ interface Message {
   text: string;
   sender: { uuid: string; name: string; avatar: string };
   ts: number;
-  isSelf?: boolean; // Optional as it's only set client-side
-  reactions?: string[]; // Match the server-side type
+  isSelf?: boolean;
+  reactions?: string[];
 }
 // --- END INTERFACES ---
 
 const getDiceBearUrl = (seed: string): string =>
   `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(seed)}`;
 
-// We'll create a room-scoped socket inside the Room component and store it in a ref.
-// This lets us connect to a namespace like `${socketUrl}/${roomId}` which reduces
-// race conditions that happen when using the default namespace + join event.
-// Resolve backend base URL (handles Vite proxy)
 const configuredApiBase = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 let socketUrl = configuredApiBase;
 if (configuredApiBase.startsWith("/")) {
@@ -55,13 +51,11 @@ export default function Room() {
   const profileKeyRoom = `wb:profile:${roomId}`;
   const profileKeyGlobal = `wb:profile`;
 
-  // Resolve initial name/avatar from (in order): URL search params, per-room saved profile, global saved profile, defaults
   const resolveInitialProfile = () => {
     try {
       const urlName = searchParams.get("name");
       const urlAvatar = searchParams.get("avatar");
       if (urlName || urlAvatar) {
-        // If URL provided, prefer them (but we'll remove the query after reading)
         return {
           name: urlName || "Guest",
           avatar: urlAvatar || getDiceBearUrl(urlName || "Guest"),
@@ -100,35 +94,29 @@ export default function Room() {
   const [isVideoOn, setIsVideoOn] = useState(false);
   const [peers, setPeers] = useState<Peer[]>([]);
 
-  // --- THE CRITICAL FIX: Use a Ref for the stream ---
   const [localStream, _setLocalStream] = useState<MediaStream | null>(null);
   const localStreamRef = useRef(localStream);
   const setLocalStream = (stream: MediaStream | null) => {
     localStreamRef.current = stream;
     _setLocalStream(stream);
   };
-  // --- End of the fix ---
 
   const peerConnections = useRef<Record<string, RTCPeerConnection>>({});
   const avatarUrl = useMemo(() => getDiceBearUrl(userName), [userName]);
-  // If the profile came from URL search params, strip them from the URL so the link stays clean
   useEffect(() => {
     try {
       const hasName = searchParams.get("name");
       const hasAvatar = searchParams.get("avatar");
       if (hasName || hasAvatar) {
-        // Replace the current history entry with the pathname only (removes query params)
         const clean = window.location.pathname;
         window.history.replaceState(null, "", clean);
       }
     } catch (e) {
       // ignore
     }
-    // We only want to run this once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist profile changes to localStorage (per-room). This allows reloads to keep name/avatar
   useEffect(() => {
     try {
       const payload = JSON.stringify({ name: userName, avatar });
@@ -141,10 +129,7 @@ export default function Room() {
       // ignore storage errors
     }
   }, [userName, avatar, profileKeyRoom, profileKeyGlobal, roomId]);
-  // ----------------------------------------------------------------
-  // SECTION 1: Top-Level Handlers (wrapped in useCallback)
   // These are now STABLE and will NOT change when localStream changes
-  // ----------------------------------------------------------------
 
   const handleMicToggle = useCallback(() => {
     const stream = localStreamRef.current;
@@ -353,10 +338,6 @@ export default function Room() {
   }, []); // STABLE
 
 
-  // ----------------------------------------------------------------
-  // SECTION 2: `useEffect` Hooks
-  // ----------------------------------------------------------------
-
   // HOOK #1 (Listeners): Runs ONCE on mount to attach all listeners and connect.
   useEffect(() => {
     console.log("HOOK #1: Setting up socket connection and listeners... URL:", import.meta.env.VITE_API_BASE || "http://localhost:4000");
@@ -505,10 +486,6 @@ export default function Room() {
       });
   }, []); // Runs only once
 
-
-  // ----------------------------------------------------------------
-  // SECTION 3: JSX Return (Layout)
-  // ----------------------------------------------------------------
 
   return (
     <div
