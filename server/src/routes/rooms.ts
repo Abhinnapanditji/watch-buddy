@@ -5,11 +5,10 @@ import { getRoomState, upsertRoomState } from '../services/db';
 const router = Router();
 
 router.post('/', async (req, res) => {
-  const id = (req.body.id as string) || uuidv4().slice(0, 8);
-  // create default state if not exists
-  const state = req.body.state || { source: null, isPlaying: false, time: 0 };
-  await upsertRoomState(id, state);
-  res.json({ roomId: id, state });
+  const id = (req.body.id as string) || uuidv4().slice(0, 8);
+  const state = req.body.state || { source: null, isPlaying: false, time: 0 };
+  const finalState = await upsertRoomState(id, state);
+  res.json({ roomId: id, state: finalState });
 });
 
 router.get('/:id/state', async (req, res) => {

@@ -28,16 +28,18 @@ export async function getRoomState(roomId: string) {
   return { ...defaultState, ...state };
 }
 
-export async function upsertRoomState(roomId: string, state: any) {
-  const merged = { ...defaultState, ...state };
+export async function upsertRoomState(roomId: string, partialState: any) {
+  const existingState = (await getRoomState(roomId)) || defaultState;
+
+  const mergedState = { ...existingState, ...partialState };
 
   await pool.query(
     `INSERT INTO rooms (id, state, last_active)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (id) DO UPDATE SET state = $2, last_active = $3`,
-    [roomId, merged, Date.now()]
+       VALUES ($1, $2, $3)
+       ON CONFLICT (id) DO UPDATE SET state = $2, last_active = $3`,
+    [roomId, mergedState, Date.now()]
   );
-  return merged;
+  return mergedState;
 }
 
 export async function touchRoom(roomId: string) {
@@ -50,66 +52,148 @@ export async function cleanupInactiveRooms(cutoff: number) {
 }
 
 export async function saveChat(roomId: string, chatEntry: any) {
-  await pool.query(
-    `INSERT INTO chats (id, room_id, sender, text, reactions, ts)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [
-      chatEntry.id,
-      roomId,
-      chatEntry.sender,
-      chatEntry.text,
-      JSON.stringify(chatEntry.reactions || []),
-      chatEntry.ts,
-    ]
-  );
+  // Determine chats table columns dynamically and insert according to available schema.
+  // Cache column list to avoid repeated metadata queries.
+  const getChatColumns = async () => {
+    const res = await pool.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'chats' AND table_schema = 'public'`
+    );
+    return res.rows.map((r) => r.column_name);
+  };
+
+  // simple in-memory cache
+  if (!(global as any).__chat_columns_cache) {
+    (global as any).__chat_columns_cache = await getChatColumns();
+  }
+  const chatCols: string[] = (global as any).__chat_columns_cache;
+
+  try {
+    if (chatCols.includes('sender')) {
+      // schema with sender JSONB and reactions/ts
+      await pool.query(
+        `INSERT INTO chats (id, room_id, sender, text, reactions, ts)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          chatEntry.id,
+          roomId,
+          chatEntry.sender ? JSON.stringify(chatEntry.sender) : null,
+          chatEntry.text,
+          JSON.stringify(chatEntry.reactions || []),
+          chatEntry.ts || Date.now(),
+        ]
+      );
+    } else if (chatCols.includes('sender_uuid')) {
+      // flattened schema (sender_uuid, sender_name, sender_avatar) and created_at
+      const createdAt = chatEntry.ts ? new Date(chatEntry.ts) : new Date();
+      await pool.query(
+        `INSERT INTO chats (id, room_id, sender_uuid, sender_name, sender_avatar, text, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          chatEntry.id,
+          roomId,
+          chatEntry.sender?.uuid || null,
+          chatEntry.sender?.name || null,
+          chatEntry.sender?.avatar || null,
+          chatEntry.text,
+          createdAt,
+        ]
+      );
+    } else {
+      // Fallback: insert minimal columns (id, room_id, text, created_at)
+      const createdAt = chatEntry.ts ? new Date(chatEntry.ts) : new Date();
+      await pool.query(
+        `INSERT INTO chats (id, room_id, text, created_at)
+         VALUES ($1, $2, $3, $4)`,
+        [chatEntry.id, roomId, chatEntry.text, createdAt]
+      );
+    }
+  } catch (err) {
+    // If insertion failed due to schema drift, refresh cache and rethrow a clearer error
+    try {
+      (global as any).__chat_columns_cache = await getChatColumns();
+    } catch (e) {
+      // ignore cache refresh errors
+    }
+    throw err;
+  }
 }
 
 export async function getChatHistory(roomId: string) {
-  const res = await pool.query(
-    `SELECT id, sender, text, ts, reactions
-     FROM chats
-     WHERE room_id = $1
-     ORDER BY ts ASC`,
-    [roomId]
-  );
+  // Determine which schema version we're using (cache the result)
+  if (!(global as any).__chat_columns_cache) {
+    const res = await pool.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'chats' AND table_schema = 'public'`
+    );
+    (global as any).__chat_columns_cache = res.rows.map((r) => r.column_name);
+  }
+  const chatCols: string[] = (global as any).__chat_columns_cache;
 
-  return res.rows.map((r) => {
-    let sender = r.sender;
-    if (typeof sender === "string") {
-      try {
-        sender = JSON.parse(sender);
-      } catch {
-        sender = null;
-      }
-    }
-    if (!sender) {
-      sender = {
-        uuid: "system",
-        name: "Unknown",
-        avatar: "https://via.placeholder.com/24",
-      };
-    }
+  let res;
+  if (chatCols.includes('sender')) {
+    // JSONB schema version
+    res = await pool.query(
+      `SELECT id, room_id, sender, text, reactions, ts
+       FROM chats
+       WHERE room_id = $1
+       ORDER BY ts ASC`,
+      [roomId]
+    );
 
-    return {
+    return res.rows.map((r) => ({
       id: r.id,
-      sender,
+      sender: typeof r.sender === 'string' ? JSON.parse(r.sender) : r.sender,
       text: r.text,
       ts: r.ts,
-      reactions:
-        typeof r.reactions === "string"
-          ? JSON.parse(r.reactions)
-          : r.reactions || [],
-    };
-  });
+      reactions: r.reactions || []
+    }));
+  } else {
+    // Flattened schema version
+    res = await pool.query(
+      `SELECT id, sender_uuid, sender_name, sender_avatar, text, created_at
+       FROM chats
+       WHERE room_id = $1
+       ORDER BY created_at ASC`,
+      [roomId]
+    );
+
+    return res.rows.map((r) => {
+      const sender = r.sender_uuid
+        ? { uuid: r.sender_uuid, name: r.sender_name || "Unknown", avatar: r.sender_avatar || "" }
+        : { uuid: "system", name: "Unknown", avatar: "https://via.placeholder.com/24" };
+
+      return {
+        id: r.id,
+        sender,
+        text: r.text,
+        ts: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+        reactions: [] // reactions are not persisted in this schema version
+      };
+    });
+  }
 }
 
-export async function addReaction(roomId: string, chatId: string, emoji: string) {
-  await pool.query(
+export async function addReaction(roomId: string, chatId: string, emoji: string): Promise<boolean> {
+  // Check if reactions column exists
+  if (!(global as any).__chat_columns_cache) {
+    const res = await pool.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'chats' AND table_schema = 'public'`
+    );
+    (global as any).__chat_columns_cache = res.rows.map((r) => r.column_name);
+  }
+  const chatCols: string[] = (global as any).__chat_columns_cache;
+
+  if (!chatCols.includes('reactions')) {
+    console.warn('Reactions not supported in current schema');
+    return false;
+  }
+
+  const res = await pool.query(
     `UPDATE chats
-     SET reactions = reactions || $1::jsonb
-     WHERE id = $2 AND room_id = $3`,
+       SET reactions = COALESCE(reactions, '[]'::jsonb) || $1::jsonb
+       WHERE id = $2 AND room_id = $3`,
     [JSON.stringify([emoji]), chatId, roomId]
   );
+  return !!(res && res.rowCount && res.rowCount > 0);
 }
 
 // Members management

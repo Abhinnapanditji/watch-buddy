@@ -1,5 +1,6 @@
 import React from "react";
 import { Copy, UserCircle } from "lucide-react";
+import { NavLink } from "react-router-dom";
 
 export default function HeaderBar({
   roomId,
@@ -21,7 +22,7 @@ export default function HeaderBar({
 
   return (
     <div className="flex items-center justify-between bg-[#1e293b] text-gray-200 px-6 py-3 border-b border-blue-800">
-      <div className="text-xl font-bold text-blue-400">WatchBuddy</div>
+      <div className="text-xl font-bold text-blue-400"><NavLink to="/">WatchBuddy</NavLink></div>
 
       <div className="flex items-center gap-2">
         <span className="text-sm bg-[#0f172a] px-3 py-1 rounded-lg border border-blue-700">
